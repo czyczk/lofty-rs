@@ -7,6 +7,7 @@ keywords    = ["tags", "audio", "metadata", "id3", "vorbis"]
 categories  = ["multimedia", "multimedia::audio", "parser-implementations"]
 readme      = "../README.md"
 include     = ["src", "LICENSE-APACHE", "LICENSE-MIT", "SUPPORTED_FORMATS.md"]
+workspace   = ".."
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true

@@ -5,6 +5,7 @@ authors = ["Serial <69764315+Serial-ATA@users.noreply.github.com>"]
 description = "Macros for Lofty"
 readme = "README.md"
 include = ["src", "Cargo.toml", "../LICENSE-*"]
+workspace = ".."
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true

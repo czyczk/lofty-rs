@@ -368,7 +368,6 @@ where
 	if let Some(atom_data) = parse_data_inner(reader, parsing_mode, atom_info)? {
 		let mut data = Vec::new();
 
-		let len = atom_data.len();
 		for (data_type, value) in atom_data {
 			let mime_type = match data_type {
 				// Type 0 is implicit
@@ -384,10 +383,10 @@ where
 					}
 
 					log::warn!(
-						"Encountered \"covr\" atom with an unknown type of `{}`, discarding",
+						"Encountered \"covr\" atom entry with an unknown type of `{}`, skipping entry",
 						Into::<u32>::into(data_type)
 					);
-					return Ok(());
+					continue;
 				},
 			};
 
@@ -398,16 +397,25 @@ where
 				data: Cow::from(value),
 			});
 
-			if len == 1 {
-				tag.atoms.push(Atom {
-					ident: AtomIdent::Fourcc(*b"covr"),
-					data: AtomDataStorage::Single(picture_data),
-				});
-
-				return Ok(());
+			if data.is_empty() {
+				data.push(picture_data);
+				continue;
 			}
 
 			data.push(picture_data);
+		}
+
+		if data.is_empty() {
+			return Ok(());
+		}
+
+		if data.len() == 1 {
+			tag.atoms.push(Atom {
+				ident: AtomIdent::Fourcc(*b"covr"),
+				data: AtomDataStorage::Single(data.remove(0)),
+			});
+
+			return Ok(());
 		}
 
 		tag.atoms.push(Atom {

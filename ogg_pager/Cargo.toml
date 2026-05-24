@@ -6,6 +6,7 @@ description = "A simple OGG page reader"
 keywords = ["ogg", "xiph"]
 categories = ["multimedia", "multimedia::audio", "parser-implementations"]
 include = ["src", "Cargo.toml", "../LICENSE-*"]
+workspace = ".."
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true

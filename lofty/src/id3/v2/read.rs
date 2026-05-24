@@ -3,7 +3,6 @@ use super::header::Id3v2Header;
 use super::tag::Id3v2Tag;
 use crate::config::ParseOptions;
 use crate::error::Result;
-use crate::id3::v2::util::synchsafe::UnsynchronizedStream;
 use crate::id3::v2::{Frame, FrameId, Id3v2Version, TimestampFrame};
 use crate::tag::items::Timestamp;
 
@@ -26,17 +25,7 @@ where
 
 	let mut tag_bytes = bytes.take(u64::from(header.size - header.extended_size));
 
-	let mut ret;
-	if header.flags.unsynchronisation {
-		// Unsynchronize the entire tag
-		let mut unsynchronized_reader = UnsynchronizedStream::new(tag_bytes);
-		ret = read_all_frames_into_tag(&mut unsynchronized_reader, header, parse_options)?;
-
-		// Get the `Take` back from the `UnsynchronizedStream`
-		tag_bytes = unsynchronized_reader.into_inner();
-	} else {
-		ret = read_all_frames_into_tag(&mut tag_bytes, header, parse_options)?;
-	}
+	let mut ret = read_all_frames_into_tag(&mut tag_bytes, header, parse_options)?;
 
 	// Throw away the rest of the tag (padding, bad frames)
 	std::io::copy(&mut tag_bytes, &mut std::io::sink())?;
@@ -143,29 +132,44 @@ where
 	tag.set_flags(header.flags);
 
 	loop {
-		match ParsedFrame::read(reader, header.version, parse_options)? {
-			ParsedFrame::Next(frame) => {
-				let frame_value_is_empty = frame.is_empty();
-				if let Some(replaced_frame) = tag.insert(frame) {
-					// Duplicate frames are not allowed. But if this occurs we try
-					// to keep the frame with the non-empty content. Superfluous,
-					// duplicate frames that follow the first frame are often empty.
-					if frame_value_is_empty == Some(true)
-						&& replaced_frame.is_empty() == Some(false)
-					{
+		match ParsedFrame::read(
+			reader,
+			header.version,
+			header.flags.unsynchronisation,
+			parse_options,
+		)? {
+			ParsedFrame::Next(frame) => match frame {
+				Frame::Picture(picture_frame) => {
+					if let Some(replaced_frame) = tag.insert_picture(picture_frame.picture.into_owned()) {
 						log::warn!(
-							"Restoring non-empty frame with ID \"{id}\" that has been replaced by \
-							 an empty frame with the same ID",
-							id = replaced_frame.id()
-						);
-						drop(tag.insert(replaced_frame));
-					} else {
-						log::warn!(
-							"Replaced frame with ID \"{id}\" by a frame with the same ID",
+							"Replaced picture frame with ID \"{id}\" while preserving other APIC frames",
 							id = replaced_frame.id()
 						);
 					}
-				}
+				},
+				frame => {
+					let frame_value_is_empty = frame.is_empty();
+					if let Some(replaced_frame) = tag.insert(frame) {
+						// Duplicate frames are not allowed. But if this occurs we try
+						// to keep the frame with the non-empty content. Superfluous,
+						// duplicate frames that follow the first frame are often empty.
+						if frame_value_is_empty == Some(true)
+							&& replaced_frame.is_empty() == Some(false)
+						{
+							log::warn!(
+								"Restoring non-empty frame with ID \"{id}\" that has been replaced by \
+								 an empty frame with the same ID",
+								id = replaced_frame.id()
+							);
+							drop(tag.insert(replaced_frame));
+						} else {
+							log::warn!(
+								"Replaced frame with ID \"{id}\" by a frame with the same ID",
+								id = replaced_frame.id()
+							);
+						}
+					}
+				},
 			},
 			// No frame content found or ignored due to errors, but we can expect more frames
 			ParsedFrame::Skip => {},

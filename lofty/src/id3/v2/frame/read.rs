@@ -24,6 +24,7 @@ impl ParsedFrame<'_> {
 	pub(crate) fn read<R>(
 		reader: &mut R,
 		version: Id3v2Version,
+		tag_unsynchronisation: bool,
 		parse_options: ParseOptions,
 	) -> Result<Self>
 	where
@@ -168,6 +169,39 @@ impl ParsedFrame<'_> {
 					parse_options.parsing_mode,
 				);
 			},
+			_ if tag_unsynchronisation => {
+				let mut unsynchronized_reader = UnsynchronizedStream::new(reader);
+
+				if flags.compression {
+					let mut compression_reader = handle_compression(unsynchronized_reader)?;
+
+					if flags.encryption.is_some() {
+						return handle_encryption(&mut compression_reader, size, id, flags);
+					}
+
+					return parse_frame(
+						&mut compression_reader,
+						size,
+						id,
+						flags,
+						version,
+						parse_options.parsing_mode,
+					);
+				}
+
+				if flags.encryption.is_some() {
+					return handle_encryption(&mut unsynchronized_reader, size, id, flags);
+				}
+
+				return parse_frame(
+					&mut unsynchronized_reader,
+					size,
+					id,
+					flags,
+					version,
+					parse_options.parsing_mode,
+				);
+			},
 			// Possible combinations:
 			//
 			// * compressed + encrypted
@@ -256,11 +290,21 @@ fn parse_frame<R: Read>(
 	version: Id3v2Version,
 	parse_mode: ParsingMode,
 ) -> Result<ParsedFrame<'static>> {
-	match parse_content(reader, id, flags, version, parse_mode)? {
-		Some(frame) => Ok(ParsedFrame::Next(frame)),
-		None => {
+	let id_for_log = id.clone();
+
+	match parse_content(reader, id, flags, version, parse_mode) {
+		Ok(Some(frame)) => Ok(ParsedFrame::Next(frame)),
+		Ok(None) => {
 			skip_frame(reader, size)?;
 			Ok(ParsedFrame::Skip)
+		},
+		Err(err) => match parse_mode {
+			ParsingMode::Strict => Err(err),
+			ParsingMode::BestAttempt | ParsingMode::Relaxed => {
+				log::warn!("Failed to parse frame content for {id_for_log}, skipping: {err}");
+				skip_frame(reader, size)?;
+				Ok(ParsedFrame::Skip)
+			},
 		},
 	}
 }

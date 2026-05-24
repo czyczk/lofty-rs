@@ -677,6 +677,22 @@ impl SplitTag for Ilst {
 		self.atoms.retain_mut(|atom| {
 			let Atom { ident, data } = atom;
 
+			if *ident == COVR && data.is_pictures() {
+				let pictures = std::mem::replace(
+					data,
+					AtomDataStorage::Single(AtomData::Picture(Picture::EMPTY)),
+				);
+
+				for picture in pictures {
+					let AtomData::Picture(picture) = picture else {
+						unreachable!();
+					};
+					tag.pictures.push(picture);
+				}
+
+				return false; // Atom consumed
+			}
+
 			let tag_item;
 			match data.first_mut() {
 				data @ (AtomData::UTF8(_) | AtomData::UTF16(_) | AtomData::Bool(_)) => {
@@ -853,15 +869,24 @@ impl MergeTag for SplitTagRemainder {
 			}
 		}
 
+		let mut pictures = Vec::new();
 		for mut picture in tag.pictures {
 			// Just for correctness, since we can't actually
 			// assign a picture type in this format
 			picture.pic_type = PictureType::Other;
+			pictures.push(AtomData::Picture(picture));
+		}
 
-			merged.atoms.push(Atom {
+		match pictures.len() {
+			0 => {}
+			1 => merged.atoms.push(Atom {
 				ident: COVR,
-				data: AtomDataStorage::Single(AtomData::Picture(picture)),
-			})
+				data: AtomDataStorage::Single(pictures.remove(0)),
+			}),
+			_ => merged.atoms.push(Atom {
+				ident: COVR,
+				data: AtomDataStorage::Multiple(pictures),
+			}),
 		}
 
 		create_int_pair(&mut merged, *b"trkn", tracks);
