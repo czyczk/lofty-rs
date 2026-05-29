@@ -721,7 +721,7 @@ where
 
 		// FLAC has its own special writing needs :)
 		if file_type == FileType::Flac {
-			return crate::flac::write::write_to_inner(file, self, write_options);
+			return crate::flac::write::write_to_inner(file, self, write_options, true);
 		}
 
 		let (format, header_packet_count) = OGGFormat::from_filetype(file_type);

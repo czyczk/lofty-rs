@@ -42,6 +42,7 @@ where
 		vorbis_comments_tag: None,
 		pictures: Vec::new(),
 		properties: FlacProperties::default(),
+		use_picture_blocks: true,
 	};
 
 	let find_id3v2_config = if parse_options.read_tags {

@@ -225,7 +225,7 @@ pub(crate) fn create_comments(
 	Ok(())
 }
 
-fn create_pictures(
+pub(crate) fn create_pictures(
 	packet: &mut impl Write,
 	count: &mut u32,
 	pictures: &mut dyn Iterator<Item = (&Picture, PictureInformation)>,

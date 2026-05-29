@@ -15,7 +15,7 @@ use std::iter::Peekable;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-pub(crate) fn write_to<F>(file: &mut F, tag: &Tag, write_options: WriteOptions) -> Result<()>
+pub(crate) fn write_to<F>(file: &mut F, tag: &Tag, write_options: WriteOptions, use_picture_blocks: bool) -> Result<()>
 where
 	F: FileLike,
 	LoftyError: From<<F as Truncate>::Error>,
@@ -31,7 +31,7 @@ where
 				pictures,
 			};
 
-			write_to_inner(file, &mut comments_ref, write_options)
+			write_to_inner(file, &mut comments_ref, write_options, use_picture_blocks)
 		},
 		// This tag can *only* be removed in this format
 		TagType::Id3v2 => {
@@ -45,6 +45,7 @@ pub(crate) fn write_to_inner<'a, F, II, IP>(
 	file: &mut F,
 	tag: &mut VorbisCommentsRef<'a, II, IP>,
 	write_options: WriteOptions,
+	use_picture_blocks: bool,
 ) -> Result<()>
 where
 	F: FileLike,
@@ -136,7 +137,7 @@ where
 	let will_write_padding = !has_padding && write_options.preferred_padding.is_some();
 	let mut file_bytes = cursor.into_inner();
 
-	let metadata_blocks = encode_tag(&tag.vendor, comments_peek, pictures_peek)?;
+	let metadata_blocks = encode_tag(&tag.vendor, comments_peek, pictures_peek, use_picture_blocks)?;
 
 	blocks.extend(metadata_blocks);
 
@@ -178,7 +179,8 @@ where
 fn encode_tag<'a, II, IP>(
 	vendor: &str,
 	mut comments_peek: Peekable<&mut II>,
-	pictures_peek: Peekable<&mut IP>,
+	mut pictures_peek: Peekable<&mut IP>,
+	use_picture_blocks: bool,
 ) -> Result<Vec<Block>>
 where
 	II: Iterator<Item = (&'a str, &'a str)>,
@@ -186,12 +188,25 @@ where
 {
 	let mut metadata_blocks = Vec::new();
 
-	if comments_peek.peek().is_some() {
-		metadata_blocks.push(Block::new_comments(vendor, &mut comments_peek)?);
-	}
+	let has_comments = comments_peek.peek().is_some();
+	let has_pictures = pictures_peek.peek().is_some();
 
-	for (picture, info) in pictures_peek {
-		metadata_blocks.push(Block::new_picture(picture, info)?);
+	if use_picture_blocks {
+		if has_comments {
+			metadata_blocks.push(Block::new_comments(vendor, &mut comments_peek)?);
+		}
+
+		for (picture, info) in pictures_peek {
+			metadata_blocks.push(Block::new_picture(picture, info)?);
+		}
+	} else {
+		if has_comments || has_pictures {
+			metadata_blocks.push(Block::new_comments_with_pictures(
+				vendor,
+				&mut comments_peek,
+				&mut pictures_peek,
+			)?);
+		}
 	}
 
 	Ok(metadata_blocks)
