@@ -54,8 +54,10 @@ fn construct_tdrc_from_v3(tag: &mut Id3v2Tag) {
 		return;
 	};
 
-	// This is not a TYER frame
+	// This is a TDRC frame with full date (month already set).
+	// Re-insert the original frame instead of discarding it.
 	if year_frame.timestamp.month.is_some() {
+		tag.insert(Frame::Timestamp(year_frame));
 		return;
 	}
 
