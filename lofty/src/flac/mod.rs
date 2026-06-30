@@ -51,6 +51,9 @@ pub struct FlacFile {
 	pub(crate) pictures: Vec<(Picture, PictureInformation)>,
 	/// The file's audio properties
 	pub(crate) properties: FlacProperties,
+	/// When false, pictures are embedded as METADATA_BLOCK_PICTURE in
+	/// Vorbis Comments instead of creating native PICTURE metadata blocks.
+	pub use_picture_blocks: bool,
 }
 
 impl FlacFile {
@@ -68,7 +71,7 @@ impl FlacFile {
 
 		// We have an existing vorbis comments tag, we can just append our pictures to it
 		if let Some(ref vorbis_comments) = self.vorbis_comments_tag {
-			return VorbisCommentsRef {
+			let mut comments_ref = VorbisCommentsRef {
 				vendor: Cow::from(vorbis_comments.vendor.as_str()),
 				items: vorbis_comments
 					.items
@@ -79,18 +82,18 @@ impl FlacFile {
 					.iter()
 					.map(|(p, i)| (p, *i))
 					.chain(self.pictures.iter().map(|(p, i)| (p, *i))),
-			}
-			.write_to(file, write_options);
+			};
+			return write::write_to_inner(file, &mut comments_ref, write_options, self.use_picture_blocks);
 		}
 
 		// We have pictures, but no vorbis comments tag, we'll need to create a dummy one
 		if !self.pictures.is_empty() {
-			return VorbisCommentsRef {
+			let mut comments_ref = VorbisCommentsRef {
 				vendor: Cow::from(""),
 				items: std::iter::empty(),
 				pictures: self.pictures.iter().map(|(p, i)| (p, *i)),
-			}
-			.write_to(file, write_options);
+			};
+			return write::write_to_inner(file, &mut comments_ref, write_options, self.use_picture_blocks);
 		}
 
 		Ok(())

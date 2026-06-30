@@ -97,6 +97,22 @@ impl Block {
 		vendor: &str,
 		items: &mut impl Iterator<Item = (&'a str, &'a str)>,
 	) -> Result<Self> {
+		Self::new_comments_inner(vendor, items, &mut std::iter::empty())
+	}
+
+	pub(super) fn new_comments_with_pictures<'a>(
+		vendor: &str,
+		items: &mut impl Iterator<Item = (&'a str, &'a str)>,
+		pictures: &mut impl Iterator<Item = (&'a Picture, PictureInformation)>,
+	) -> Result<Self> {
+		Self::new_comments_inner(vendor, items, pictures)
+	}
+
+	fn new_comments_inner<'a>(
+		vendor: &str,
+		items: &mut impl Iterator<Item = (&'a str, &'a str)>,
+		pictures: &mut impl Iterator<Item = (&'a Picture, PictureInformation)>,
+	) -> Result<Self> {
 		let mut comments = Cursor::new(Vec::new());
 
 		comments.write_u32::<LittleEndian>(vendor.len() as u32)?;
@@ -108,6 +124,7 @@ impl Block {
 		comments.write_u32::<LittleEndian>(count)?;
 
 		crate::ogg::write::create_comments(&mut comments, &mut count, items)?;
+		crate::ogg::write::create_pictures(&mut comments, &mut count, pictures)?;
 
 		if comments.get_ref().len() > Block::MAX_CONTENT_SIZE as usize {
 			err!(TooMuchData);

@@ -21,6 +21,7 @@ pub struct OpusProperties {
 	pub(crate) channel_mask: ChannelMask,
 	pub(crate) version: u8,
 	pub(crate) input_sample_rate: u32,
+	pub(crate) output_gain: i16,
 }
 
 impl From<OpusProperties> for FileProperties {
@@ -76,6 +77,11 @@ impl OpusProperties {
 	pub fn input_sample_rate(&self) -> u32 {
 		self.input_sample_rate
 	}
+
+	/// Opus header output gain in Q7.8 dB units
+	pub fn output_gain(&self) -> i16 {
+		self.output_gain
+	}
 }
 
 pub(in crate::ogg) fn read_properties<R>(
@@ -102,7 +108,7 @@ where
 
 	properties.input_sample_rate = identification_packet_reader.read_u32::<LittleEndian>()?;
 
-	let _output_gain = identification_packet_reader.read_u16::<LittleEndian>()?;
+	properties.output_gain = identification_packet_reader.read_i16::<LittleEndian>()?;
 
 	let channel_mapping_family = identification_packet_reader.read_u8()?;
 

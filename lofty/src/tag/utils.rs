@@ -34,7 +34,7 @@ where
 		FileType::Aac => aac::write::write_to(file, tag, write_options),
 		FileType::Aiff => iff::aiff::write::write_to(file, tag, write_options),
 		FileType::Ape => ape::write::write_to(file, tag, write_options),
-		FileType::Flac => flac::write::write_to(file, tag, write_options),
+		FileType::Flac => flac::write::write_to(file, tag, write_options, true),
 		FileType::Opus | FileType::Speex | FileType::Vorbis => {
 			crate::ogg::write::write_to(file, tag, file_type, write_options)
 		},
